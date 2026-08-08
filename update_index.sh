@@ -111,10 +111,10 @@ while IFS= read -r file; do
     echo "$GALLERY_MARK_END"
   } > "$TEMP_GALLERY"
 
-  # Insert button after <main> opening
+  # Insert button after <main> opening (or after <div class="page">)
   btn='<button class="gallery-btn" onclick="openGallery()">📸 Посмотреть фото</button>'
   awk -v btn="$btn" '
-      /<main[^>]*>/ && !done {
+      /<main[^>]*>|<div class="page"[^>]*>/ && !done {
           print
           print btn
           done = 1
