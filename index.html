@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Семейные рецепты</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+@page{size:A4;margin:10mm}*{box-sizing:border-box}
+:root{--paper:#fbf8f2;--ink:#292825;--muted:#77736b;--green:#385c4e;--green-soft:#eaf1ec;--red:#b85f45;--red-soft:#f5e8e1;--line:#e2ddd4}
+body{margin:0;background:#e9e3d9;color:var(--ink);font-family:Inter,Arial,sans-serif}
+.page{width:210mm;min-height:297mm;margin:auto;background:var(--paper);padding:14mm 15mm 12mm;position:relative;overflow:hidden}
+.page:before{content:"";position:absolute;right:-48mm;top:-45mm;width:120mm;height:120mm;border:1px solid #e1d8c9;border-radius:50%}
+.page:after{content:"";position:absolute;left:-38mm;bottom:-45mm;width:100mm;height:100mm;background:var(--red-soft);border-radius:50%;opacity:.55}
+.header{position:relative;z-index:1;border-bottom:1px solid var(--line);padding-bottom:11px}
+.kicker{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--red);font-weight:700;margin-bottom:5px}
+h1{font:700 39px/0.95 "Cormorant Garamond",Georgia,serif;color:var(--green);margin:0 0 5px}
+.subtitle{font-size:13px;color:var(--muted)}
+.layout{position:relative;z-index:1;display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
+.card{background:#fff;border:1px solid #ebe6de;border-radius:15px;padding:15px}
+.card h2{font:700 24px/1 "Cormorant Garamond",Georgia,serif;color:var(--green);margin:0 0 10px}
+.section-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:8px}
+
+/* Custom interactive link styles maintaining the source aesthetic */
+.recipe-link {display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px dashed #ddd7cd;text-decoration:none;color:var(--ink);transition:all 0.2s ease;}
+.recipe-link:last-child {border-bottom:0}
+.recipe-link:hover {background:var(--green-soft); border-radius: 8px; padding-left: 8px;}
+.recipe-link strong {font-weight:700;font-family:"Cormorant Garamond",Georgia,serif;font-size:22px;color:var(--green)}
+.arrow {flex:none;width:24px;height:24px;border:1.5px solid #9bafa3;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#9bafa3;font-size:12px;transition:all 0.2s}
+.recipe-link:hover .arrow {background:var(--green);color:#fff;border-color:var(--green)}
+
+@media print{body{background:#fff}.page{margin:0;box-shadow:none}}
+@media(max-width:800px){body{background:var(--paper)}.page{width:100%;min-height:auto;padding:25px}.layout{grid-template-columns:1fr}}
+</style>
+</head>
+<body><main class="page">
+<header class="header">
+<div class="kicker">Домашняя кухня • Навигация</div>
+<h1>Семейные рецепты</h1>
+<div class="subtitle">Каталог проверенных рецептов</div>
+</header>
+
+<section class="layout">
+<aside class="card">
+<div class="section-label">Оглавление</div><h2>Выбор блюда</h2>
+<div id="recipe-list">
+<!-- RECIPE_LINKS_START -->
+<a href="khachapuri.html" class="recipe-link">
+  <span class="arrow">→</span>
+  <div><strong>Аджарские хачапури</strong></div>
+</a>
+<a href="pileca-lava.html" class="recipe-link">
+  <span class="arrow">→</span>
+  <div><strong>Лава Полло — Pileća Lava</strong></div>
+</a>
+<!-- RECIPE_LINKS_END -->
+</div>
+</aside>
+</section>
+
+</main></body></html>
