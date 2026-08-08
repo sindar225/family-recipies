@@ -15,6 +15,14 @@ if [[ ! -f "$INDEX_FILE" ]]; then
   exit 1
 fi
 
+# Build list of recipe html files based on repository layout
+if [[ -d "$RECIPES_DIR" ]]; then
+  RECIPE_FILES="$(find "$RECIPES_DIR" -mindepth 2 -type f -name "*.html" | sort)"
+else
+  # fallback for flat layout (recipes are in root subdirectories)
+  RECIPE_FILES="$(find . -mindepth 2 -maxdepth 2 -type f -name "*.html" ! -name "index.html" | sort)"
+fi
+
 # ---------- Job 1: update index ----------
 > "$TEMP_LINKS"
 
@@ -31,7 +39,7 @@ while IFS= read -r file; do
   echo "  <span class=\"arrow\">→</span>" >> "$TEMP_LINKS"
   echo "  <div><strong>${title}</strong></div>" >> "$TEMP_LINKS"
   echo "</a>" >> "$TEMP_LINKS"
-done < <(find "$RECIPES_DIR" -mindepth 2 -type f -name "*.html" | sort)
+done <<< "$RECIPE_FILES"
 
 awk '
 /<!-- RECIPE_LINKS_START -->/ {
@@ -129,6 +137,6 @@ while IFS= read -r file; do
   rm -f "$TEMP_GALLERY"
 
   echo " - Gallery injected: $file"
-done < <(find "$RECIPES_DIR" -mindepth 2 -type f -name "*.html" | sort)
+done <<< "$RECIPE_FILES"
 
 echo "✅ ${INDEX_FILE} updated and galleries processed."
