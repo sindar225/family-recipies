@@ -1,43 +1,42 @@
 #!/bin/bash
 
+set -euo pipefail
+
 INDEX_FILE="index.html"
 TEMP_LINKS="links.tmp"
 TEMP_INDEX="index.tmp"
+TEMP_GALLERY="gallery.tmp"
+RECIPES_DIR="./recipes"
+GALLERY_MARK_START="<!-- GALLERY_START -->"
+GALLERY_MARK_END="<!-- GALLERY_END -->"
 
-# Verify the index file exists before running
 if [[ ! -f "$INDEX_FILE" ]]; then
-    echo "Error: $INDEX_FILE not found in the current directory."
-    exit 1
+  echo "Error: ${INDEX_FILE} not found."
+  exit 1
 fi
 
+# ---------- Job 1: update index ----------
 > "$TEMP_LINKS"
 
-# Process all HTML files except the index
-for file in *.html; do
-    if [[ "$file" != "$INDEX_FILE" && -f "$file" ]]; then
-        
-        # Extract title cleanly using awk
-        title=$(awk -F'[<>]' 'tolower($0) ~ /<title>/ {print $3; exit}' "$file")
-        
-        # Fallback to the capitalized filename if the title tag is missing or empty
-        if [[ -z "$title" ]]; then
-            filename="${file%.*}"
-            title="$(tr '[:lower:]' '[:upper:]' <<< ${filename:0:1})${filename:1}"
-        fi
-        
-        # Build the HTML list item matching the visual theme
-        echo "<a href=\"$file\" class=\"recipe-link\">" >> "$TEMP_LINKS"
-        echo "  <span class=\"arrow\">→</span>" >> "$TEMP_LINKS"
-        echo "  <div><strong>$title</strong></div>" >> "$TEMP_LINKS"
-        echo "</a>" >> "$TEMP_LINKS"
-    fi
-done
+while IFS= read -r file; do
+  [[ -z "$file" ]] && continue
+  title=$(awk -F'[<>]' 'tolower($0) ~ /<title>/ {print $3; exit}' "$file")
+  if [[ -z "$title" ]]; then
+    filename="$(basename "$file")"
+    filename="${filename%.*}"
+    title="$(tr '[:lower:]' '[:upper:]' <<< "${filename:0:1}")${filename:1}"
+  fi
+  rel_path="${file#./}"
+  echo "<a href=\"${rel_path}\" class=\"recipe-link\">" >> "$TEMP_LINKS"
+  echo "  <span class=\"arrow\">→</span>" >> "$TEMP_LINKS"
+  echo "  <div><strong>${title}</strong></div>" >> "$TEMP_LINKS"
+  echo "</a>" >> "$TEMP_LINKS"
+done < <(find "$RECIPES_DIR" -mindepth 2 -type f -name "*.html" | sort)
 
-# Inject the generated links safely between the HTML markers
 awk '
 /<!-- RECIPE_LINKS_START -->/ {
     print
-    system("cat links.tmp")
+    system("cat '"$TEMP_LINKS"'")
     skip=1
     next
 }
@@ -47,8 +46,89 @@ awk '
 !skip {print}
 ' "$INDEX_FILE" > "$TEMP_INDEX"
 
-# Overwrite the old index and clean up temporary files
 mv "$TEMP_INDEX" "$INDEX_FILE"
-rm "$TEMP_LINKS"
+rm -f "$TEMP_LINKS"
 
-echo "✅ $INDEX_FILE has been successfully updated with the latest recipes."
+# ---------- Job 2: inject gallery ----------
+while IFS= read -r file; do
+  [[ -z "$file" ]] && continue
+  dir=$(dirname "$file")
+  photos_dir="${dir}/photos"
+  if [[ ! -d "$photos_dir" ]]; then
+    continue
+  fi
+
+  image_list=$(find "$photos_dir" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) | sort)
+  [[ -z "$image_list" ]] && continue
+
+  # skip if already injected
+  if grep -q "$GALLERY_MARK_START" "$file"; then
+    echo " - already has gallery: $file"
+    continue
+  fi
+
+  > "$TEMP_GALLERY"
+  {
+    echo "$GALLERY_MARK_START"
+    echo '<style>'
+    echo '  .gallery-btn{ margin: 10px 0; padding: 8px 14px; border:1px solid var(--green); border-radius:20px; background: var(--green-soft); cursor:pointer; font-size:13px; color:var(--green); }'
+    echo '  .gallery-modal{ position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index:9999; display:none; align-items:center; justify-content:center; }'
+    echo '  .gallery-close{ position: absolute; top:15px; right:25px; font-size:45px; color:#fff; cursor:pointer; }'
+    echo '  .gallery-slides{ text-align:center; }'
+    echo '  .gallery-modal img{ max-width:90%; max-height:80vh; margin:auto; }'
+    echo '  .gallery-prev,.gallery-next{ position:absolute; top:50%; transform:translateY(-50%); background:transparent; border:none; color:#fff; font-size:40px; cursor:pointer; }'
+    echo '  .gallery-prev{ left:10px; }'
+    echo '  .gallery-next{ right:10px; }'
+    echo '  @media print { .gallery-modal, .gallery-btn { display: none !important; } }'
+    echo '</style>'
+    echo '<div id="gallery-modal" class="gallery-modal" style="display:none">'
+    echo '  <span class="gallery-close" onclick="closeGallery()">&times;</span>'
+    echo '  <div class="gallery-slides">'
+    while IFS= read -r img; do
+      base=$(basename "$img")
+      echo "    <img class=\"gallery-slide\" src=\"photos/${base}\" alt=\"Фото\" style=\"display:none\">"
+    done <<< "$image_list"
+    echo '  </div>'
+    echo '  <button class="gallery-prev" onclick="changeSlide(-1)">&#10094;</button>'
+    echo '  <button class="gallery-next" onclick="changeSlide(1)">&#10095;</button>'
+    echo '</div>'
+    echo '<script>'
+    echo '  let currentSlide = 0;'
+    echo '  const slides = document.querySelectorAll(".gallery-slide");'
+    echo '  function openGallery(){ document.getElementById("gallery-modal").style.display = "flex"; showSlide(currentSlide); }'
+    echo '  function closeGallery(){ document.getElementById("gallery-modal").style.display = "none"; }'
+    echo '  function showSlide(n){ if(!slides.length) return; if(n >= slides.length) n = 0; if(n < 0) n = slides.length-1; currentSlide = n; slides.forEach(s => s.style.display = "none"); slides[n].style.display = "block"; }'
+    echo '  function changeSlide(n){ showSlide(currentSlide + n); }'
+    echo '</script>'
+    echo "$GALLERY_MARK_END"
+  } > "$TEMP_GALLERY"
+
+  # Insert button after <main> opening
+  btn='<button class="gallery-btn" onclick="openGallery()">📸 Посмотреть фото</button>'
+  awk -v btn="$btn" '
+      /<main[^>]*>/ && !done {
+          print
+          print btn
+          done = 1
+          next
+      }
+      { print }
+  ' "$file" > "$file.tmp"
+  mv "$file.tmp" "$file"
+
+  # Insert gallery modal before </body>
+  awk -v gal="$TEMP_GALLERY" '
+      /<\/body>/ {
+          while ((getline line < gal) > 0) print line
+          close(gal)
+      }
+      { print }
+  ' "$file" > "$file.tmp"
+  mv "$file.tmp" "$file"
+
+  rm -f "$TEMP_GALLERY"
+
+  echo " - Gallery injected: $file"
+done < <(find "$RECIPES_DIR" -mindepth 2 -type f -name "*.html" | sort)
+
+echo "✅ ${INDEX_FILE} updated and galleries processed."
