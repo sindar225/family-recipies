@@ -44,6 +44,7 @@ h1{font:700 39px/0.95 "Cormorant Garamond",Georgia,serif;color:var(--green);marg
 </style>
 </head>
 <body><main class="page">
+<button class="gallery-btn" onclick="openGallery()">📸 Посмотреть фото</button>
 <header class="header">
 <div class="kicker">Домашняя кухня • сырная запеканка</div>
 <h1>Лава Полло</h1>
@@ -91,4 +92,35 @@ h1{font:700 39px/0.95 "Cormorant Garamond",Georgia,serif;color:var(--green);marg
 <div class="finish-card"><div class="finish-title">🧀 Внутри</div><div class="finish-text">Гауда должна стать мягкой и тягучей, а соус — густым и насыщенным, без лишней жидкости.</div></div>
 </div></section>
 <footer class="footer"><span>PILEĆA LAVA</span><span>Лучше подавать сразу, пока сыр горячий и тягучий.</span></footer>
+<!-- GALLERY_START -->
+<style>
+  .gallery-btn{ margin: 10px 0; padding: 8px 14px; border:1px solid var(--green); border-radius:20px; background: var(--green-soft); cursor:pointer; font-size:13px; color:var(--green); }
+  .gallery-modal{ position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index:9999; display:none; align-items:center; justify-content:center; }
+  .gallery-close{ position: absolute; top:15px; right:25px; font-size:45px; color:#fff; cursor:pointer; }
+  .gallery-slides{ text-align:center; }
+  .gallery-modal img{ max-width:90%; max-height:80vh; margin:auto; }
+  .gallery-prev,.gallery-next{ position:absolute; top:50%; transform:translateY(-50%); background:transparent; border:none; color:#fff; font-size:40px; cursor:pointer; }
+  .gallery-prev{ left:10px; }
+  .gallery-next{ right:10px; }
+  @media print { .gallery-modal, .gallery-btn { display: none !important; } }
+</style>
+<div id="gallery-modal" class="gallery-modal" style="display:none">
+  <span class="gallery-close" onclick="closeGallery()">&times;</span>
+  <div class="gallery-slides">
+    <img class="gallery-slide" src="photos/IMG_3126.jpeg" alt="Фото" style="display:none">
+    <img class="gallery-slide" src="photos/IMG_3127.jpeg" alt="Фото" style="display:none">
+    <img class="gallery-slide" src="photos/IMG_3128.jpeg" alt="Фото" style="display:none">
+  </div>
+  <button class="gallery-prev" onclick="changeSlide(-1)">&#10094;</button>
+  <button class="gallery-next" onclick="changeSlide(1)">&#10095;</button>
+</div>
+<script>
+  let currentSlide = 0;
+  const slides = document.querySelectorAll(".gallery-slide");
+  function openGallery(){ document.getElementById("gallery-modal").style.display = "flex"; showSlide(currentSlide); }
+  function closeGallery(){ document.getElementById("gallery-modal").style.display = "none"; }
+  function showSlide(n){ if(!slides.length) return; if(n >= slides.length) n = 0; if(n < 0) n = slides.length-1; currentSlide = n; slides.forEach(s => s.style.display = "none"); slides[n].style.display = "block"; }
+  function changeSlide(n){ showSlide(currentSlide + n); }
+</script>
+<!-- GALLERY_END -->
 </main></body></html>
