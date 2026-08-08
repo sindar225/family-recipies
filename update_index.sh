@@ -69,6 +69,16 @@ while IFS= read -r file; do
   image_list=$(find "$photos_dir" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) 2>/dev/null | sort) || true
   [[ -z "$image_list" ]] && continue
 
+  # Remove all metadata from images using ExifTool
+  if command -v exiftool >/dev/null 2>&1; then
+    while IFS= read -r img; do
+      exiftool -overwrite_original -all= "$img" >/dev/null 2>&1 || true
+    done <<< "$image_list"
+  else
+    echo "⚠️  ExifTool не найден. Установите его: brew install exiftool" >&2
+    exit 1
+  fi
+
   # skip if already injected
   if grep -q "$GALLERY_MARK_START" "$file"; then
     echo " - already has gallery: $file"
