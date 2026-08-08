@@ -19,8 +19,8 @@ fi
 if [[ -d "$RECIPES_DIR" ]]; then
   RECIPE_FILES="$(find "$RECIPES_DIR" -mindepth 2 -type f -name "*.html" | sort)"
 else
-  # fallback for flat layout (recipes are in root subdirectories)
-  RECIPE_FILES="$(find . -mindepth 2 -maxdepth 2 -type f -name "*.html" ! -name "index.html" | sort)"
+  # fallback for any layout: find all non-index HTML files anywhere in repo
+  RECIPE_FILES="$(find . -type f -name "*.html" ! -name "index.html" | sort)"
 fi
 
 # ---------- Job 1: update index ----------
@@ -66,7 +66,7 @@ while IFS= read -r file; do
     continue
   fi
 
-  image_list=$(find "$photos_dir" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) | sort)
+  image_list=$(find "$photos_dir" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) 2>/dev/null | sort) || true
   [[ -z "$image_list" ]] && continue
 
   # skip if already injected
