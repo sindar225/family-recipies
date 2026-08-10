@@ -44,7 +44,7 @@ fi
 
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
-  title=$(awk -F'[<>]' 'tolower($0) ~ /<title>/ {print $3; exit}' "$file")
+  title=$(awk '/<title>/{sub(/.*<title>/,""); sub(/<\/title>.*/,""); print; exit}' "$file")
   if [[ -z "$title" ]]; then
     filename="$(basename "$file")"
     filename="${filename%.*}"
