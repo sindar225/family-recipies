@@ -10,6 +10,22 @@ RECIPES_DIR="./recipes"
 GALLERY_MARK_START="<!-- GALLERY_START -->"
 GALLERY_MARK_END="<!-- GALLERY_END -->"
 
+REFRESH_MODE=false
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --refresh)
+      REFRESH_MODE=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
 if [[ ! -f "$INDEX_FILE" ]]; then
   echo "Error: ${INDEX_FILE} not found."
   exit 1
@@ -67,7 +83,22 @@ while IFS= read -r file; do
   fi
 
   image_list=$(find "$photos_dir" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) 2>/dev/null | sort) || true
-  [[ -z "$image_list" ]] && continue
+
+  if [[ -z "$image_list" ]]; then
+    if [[ "$REFRESH_MODE" == true ]] && grep -q "$GALLERY_MARK_START" "$file"; then
+      # remove existing gallery block (no photos to show)
+      awk -v start="$GALLERY_MARK_START" -v end="$GALLERY_MARK_END" '
+        $0 ~ start { inside=1; next }
+        inside && $0 ~ end { inside=0; next }
+        !inside { print }
+      ' "$file" > "$file.tmp"
+      mv "$file.tmp" "$file"
+      # remove button line (only the HTML button, not CSS rules)
+      sed -i '' '/<button class="gallery-btn"/d' "$file"
+      echo " - Removed gallery (no photos): $file"
+    fi
+    continue
+  fi
 
   # Remove all metadata from images using ExifTool
   if command -v exiftool >/dev/null 2>&1; then
@@ -79,8 +110,8 @@ while IFS= read -r file; do
     exit 1
   fi
 
-  # skip if already injected
-  if grep -q "$GALLERY_MARK_START" "$file"; then
+  # skip if already injected and not refreshing
+  if [[ "$REFRESH_MODE" != true ]] && grep -q "$GALLERY_MARK_START" "$file"; then
     echo " - already has gallery: $file"
     continue
   fi
@@ -121,32 +152,52 @@ while IFS= read -r file; do
     echo "$GALLERY_MARK_END"
   } > "$TEMP_GALLERY"
 
-  # Insert button after <main> opening (or after <div class="page">)
-  btn='<button class="gallery-btn" onclick="openGallery()">📸 Посмотреть фото</button>'
-  awk -v btn="$btn" '
-      /<main[^>]*>|<div class="page"[^>]*>/ && !done {
-          print
-          print btn
-          done = 1
-          next
-      }
-      { print }
-  ' "$file" > "$file.tmp"
-  mv "$file.tmp" "$file"
+  # Ensure button exists (only add if not already present)
+  if ! grep -q '<button class="gallery-btn"' "$file"; then
+    btn='<button class="gallery-btn" onclick="openGallery()">📸 Посмотреть фото</button>'
+    awk -v btn="$btn" '
+        /<main[^>]*>|<div class="page"[^>]*>/ && !done {
+            print
+            print btn
+            done = 1
+            next
+        }
+        { print }
+    ' "$file" > "$file.tmp"
+    mv "$file.tmp" "$file"
+  fi
 
-  # Insert gallery modal before </body>
-  awk -v gal="$TEMP_GALLERY" '
-      /<\/body>/ {
-          while ((getline line < gal) > 0) print line
-          close(gal)
+  # Replace existing gallery block if needed, otherwise insert before </body>
+  if grep -q "$GALLERY_MARK_START" "$file"; then
+    awk -v gal="$TEMP_GALLERY" -v start="$GALLERY_MARK_START" -v end="$GALLERY_MARK_END" '
+      $0 ~ start {
+        while ((getline line < gal) > 0) print line
+        close(gal)
+        inside=1
+        next
       }
+      inside && $0 ~ end {
+        inside=0
+        next
+      }
+      inside { next }
       { print }
-  ' "$file" > "$file.tmp"
-  mv "$file.tmp" "$file"
+    ' "$file" > "$file.tmp"
+    mv "$file.tmp" "$file"
+  else
+    awk -v gal="$TEMP_GALLERY" '
+        /<\/body>/ {
+            while ((getline line < gal) > 0) print line
+            close(gal)
+        }
+        { print }
+    ' "$file" > "$file.tmp"
+    mv "$file.tmp" "$file"
+  fi
 
   rm -f "$TEMP_GALLERY"
 
-  echo " - Gallery injected: $file"
+  echo " - Gallery processed: $file"
 done <<< "$RECIPE_FILES"
 
 echo "✅ ${INDEX_FILE} updated and galleries processed."
