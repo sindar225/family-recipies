@@ -1,0 +1,64 @@
+name: Post-Deploy Site Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'recipes/**'
+      - 'index.html'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verify-live-site:
+    name: Validate recipe.geekway.dev after deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compute expected recipe URLs
+        id: expected
+        run: |
+          list=""
+          for d in recipes/*/; do
+            d="${d%/}"
+            list="$list recipes/${d##*/}/${d##*/}.html"
+          done
+          echo "list=${list}" >> "$GITHUB_OUTPUT"
+      - name: Wait for GitHub Pages deploy (~3 min)
+        run: sleep 180
+      - name: Verify live site
+        id: verify
+        env:
+          EXPECTED: ${{ steps.expected.outputs.list }}
+        run: python3 scripts/verify_live_site.py 2>&1 | tee /tmp/verify-report.txt
+      - name: Open issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          report="/tmp/verify-report.txt"
+          body=$(python3 - <<'PY'
+          import json
+          try:
+              report = open('/tmp/verify-report.txt').read()
+          except OSError:
+              report = 'no report available'
+          body = ("Post-deploy validation of https://recipe.geekway.dev failed "
+                  "after merge of `${{ github.sha }}`.\n\n"
+                  "```\n" + report[-4000:] + "\n```\n\n"
+                  "Action: investigate and fix with a patch PR.")
+          print(json.dumps({"title": "Post-deploy site check failed",
+                            "body": body}))
+          PY
+          )
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/issues" \
+            -d "$body"

@@ -117,6 +117,26 @@ After a recipe PR merges, create a GitHub Release:
 - **Title:** the dish name
 - **Notes:** one-paragraph changelog summary in English
 
+### Post-deploy validation
+
+GitHub Pages deploys with a lag of ~3 minutes. After every merge that
+touches `recipes/` or `index.html`, the **Post-Deploy Site Check**
+workflow (`.github/workflows/post-deploy-check.yml`) waits for the deploy,
+then validates the live site with `scripts/verify_live_site.py`:
+
+- `index.html` is up and lists every expected recipe URL
+- every recipe page returns 200 and carries the canonical markers
+  (`<title>`, `.page`, print media rule)
+- every gallery photo loads (200)
+
+If validation fails, the workflow opens an issue automatically. The fix
+goes back through the normal cycle: **patch PR → quality gate → merge →
+re-validate**. Local run:
+
+```bash
+python3 scripts/verify_live_site.py    # validates recipe.geekway.dev
+```
+
 ## 8. The quality gate
 
 `scripts/quality_gate.py` runs on every PR (see
