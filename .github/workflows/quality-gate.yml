@@ -1,0 +1,51 @@
+name: Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'recipes/**'
+      - 'index.html'
+      - 'scripts/**'
+      - '.github/workflows/quality-gate.yml'
+      - 'CONTRIBUTING.md'
+  push:
+    branches: [main]
+    paths:
+      - 'recipes/**'
+      - 'index.html'
+      - 'scripts/**'
+      - '.github/workflows/quality-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    name: Repo standards & PR format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install EXIF parser
+        run: pip install --quiet piexif
+      - name: Compute changed files (PR only)
+        id: changes
+        run: |
+          git fetch origin main --depth=1 || true
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "status<<EOF" >> "$GITHUB_OUTPUT"
+            git diff --name-status origin/main...HEAD || true
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run quality gate
+        env:
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
+          PR_TITLE: ${{ github.event.pull_request.title || '' }}
+          CHANGED_STATUS: ${{ steps.changes.outputs.status }}
+        run: python3 scripts/quality_gate.py
