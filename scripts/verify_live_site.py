@@ -24,6 +24,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urljoin
 
 BASE = os.environ.get("LIVE_SITE", "https://recipe.geekway.dev").rstrip("/")
 RETRIES = int(os.environ.get("RETRIES", "6"))
@@ -91,16 +92,14 @@ def validate_once():
             errors.append(f"{url} — cannot re-read ({e})")
             continue
         for src in re.findall(r'src="(photos/[^"]+)"', html):
+            # stdlib urljoin resolves relative to the page URL directory,
+            # e.g. .../recipes/a/a.html + photos/p.jpg -> .../recipes/a/photos/p.jpg
             photo_url = urljoin(url, src)
             ok, detail = check_page(photo_url)
             print(f"    {src:40s}: {detail}")
             if not ok:
                 errors.append(f"{photo_url} — {detail}")
     return errors
-
-
-def urljoin(base, rel):
-    return base.rstrip("/") + "/" + rel.lstrip("/")
 
 
 def main():
