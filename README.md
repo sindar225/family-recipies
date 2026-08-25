@@ -1,58 +1,35 @@
 # Семейные рецепты 🍲
 
-Этот репозиторий содержит легковесный статический веб-сайт для хранения и удобного просмотра коллекции семейных рецептов. Проект написан на чистом HTML и CSS, не требует использования сложных фреймворков или баз данных, и идеально подходит для бесплатного хостинга на платформах вроде GitHub Pages, Cloudflare Pages или Netlify.
+Lightweight static recipe website for the family, served at
+**[https://recipe.geekway.dev](https://recipe.geekway.dev)** via GitHub Pages.
+Pure HTML5 + CSS3 + Vanilla JS — no frameworks, no build step, no database.
 
-## 📂 Структура проекта
+## Structure
 
-*   `index.html` — главная страница, служащая оглавлением и навигацией по сайту.
-*   `*.html` — файлы с отдельными рецептами (например, `pileca-lava.html`).
-*   `update_index.sh` — bash-скрипт для автоматического формирования списка ссылок на рецепты на главной странице.
-
----
-
-## 🛠 Требуемые инструменты
-
-Для работы скрипта `update_index.sh` необходимы:
-
-- **Bash** (встроенная оболочка macOS)
-- **awk** и **find** (предустановлены в macOS)
-- **ExifTool** – используется для удаления всех метаданных из фотографий рецептов.
-
-Установить ExifTool можно через Homebrew:
-
-```bash
-brew install exiftool
+```
+/
+├── index.html              # navigation / table of contents
+├── recipes/
+│   └── <slug>/             # one folder per recipe
+│       ├── <slug>.html     # the recipe page (prints on a single A4 page)
+│       └── photos/         # optional photo gallery
+├── scripts/quality_gate.py # CI quality gate (run it locally too)
+└── .github/workflows/      # GitHub Actions
 ```
 
-Проверить, что всё готово:
+## Adding a recipe
+
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full standards: directory
+layout, slug/photo naming, design system, gallery rules, PR format and
+release conventions. Every PR is validated by the quality gate CI check.
+
+Quick local validation:
 
 ```bash
-exiftool -ver
+python3 scripts/quality_gate.py
 ```
 
-## 🚀 Использование
+## Deployment
 
-Запустите скрипт из корня репозитория:
-
-```bash
-./update_index.sh
-```
-
-Скрипт выполняет три действия:
-1. Обновляет список ссылок на рецепты в `index.html`.
-2. Добавляет фото‑галерею на страницы, где есть папка `photos`.
-3. Очищает метаданные всех изображений (EXIF, GPS и т.д.) с помощью `exiftool -overwrite_original -all=`.
-
----
-
-## ⚙️ Как добавить новый рецепт и обновить оглавление
-
-Проект частично автоматизирован: вам не нужно вручную прописывать ссылки на новые блюда в главном меню. Для этого используется скрипт, который сам находит все файлы рецептов в папке и обновляет `index.html`.
-
-### Шаг 1. Добавьте рецепт
-Создайте новый `.html` файл с рецептом (или скопируйте существующий шаблон, чтобы сохранить визуальный стиль) и сохраните его в корневой папке репозитория. Обязательно укажите название блюда в теге `<title>` внутри файла — именно оно будет отображаться в меню.
-
-### Шаг 2. Выдайте права на выполнение (только при первом запуске)
-Откройте терминал, перейдите в папку с проектом и сделайте скрипт исполняемым с помощью команды:
-```bash
-chmod +x update_index.sh
+GitHub Pages serves the repo root (see `CNAME`); pushing to `main`
+deploys automatically. No manual steps.
