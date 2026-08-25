@@ -144,6 +144,7 @@ python3 scripts/verify_live_site.py    # validates recipe.geekway.dev
 
 ```bash
 python3 scripts/quality_gate.py          # pass/fail for the whole repo
+python3 scripts/quality_gate.py --summary /tmp/g.md   # also write a markdown report
 PR_BODY="..." PR_TITLE="..." CHANGED_STATUS="$(git diff --name-status origin/main...HEAD)" \
   python3 scripts/quality_gate.py        # also checks the PR body format
 ```
@@ -151,3 +152,8 @@ PR_BODY="..." PR_TITLE="..." CHANGED_STATUS="$(git diff --name-status origin/mai
 It validates: directory layout, slug & photo naming, design-system
 compliance, gallery integrity, index consistency, photo EXIF/GPS privacy,
 and (on PRs) the body/title format. Exit code 0 = pass.
+
+Both CI workflows publish a human-readable **markdown summary** on the
+run page (via `$GITHUB_STEP_SUMMARY`): the quality gate shows a
+per-area status table, the post-deploy check shows a per-URL result
+table. Summaries render even on failed runs.

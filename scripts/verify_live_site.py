@@ -11,6 +11,7 @@ Fetches the LIVE site and verifies:
 
 Usage:
     python3 scripts/verify_live_site.py                  # recipe.geekway.dev
+    python3 scripts/verify_live_site.py --summary /tmp/verify-summary.md  # markdown report
     LIVE_SITE=https://example.com python3 scripts/verify_live_site.py
     EXPECTED="recipes/a/a.html recipes/b/b.html" python3 ...   # strict index compare
     RETRIES=6 RETRY_DELAY=30 python3 ...                 # tolerate Pages deploy lag
@@ -24,6 +25,8 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urljoin
 
 BASE = os.environ.get("LIVE_SITE", "https://recipe.geekway.dev").rstrip("/")
@@ -31,6 +34,12 @@ RETRIES = int(os.environ.get("RETRIES", "6"))
 RETRY_DELAY = int(os.environ.get("RETRY_DELAY", "30"))
 EXPECTED = [u for u in os.environ.get("EXPECTED", "").split() if u.strip()]
 UA = {"User-Agent": "family-recipes-verify/1.0"}
+
+SUMMARY_FILE = None
+if "--summary" in sys.argv:
+    _idx = sys.argv.index("--summary")
+    if _idx + 1 < len(sys.argv):
+        SUMMARY_FILE = sys.argv[_idx + 1]
 
 
 def fetch(url, timeout=30):
@@ -58,16 +67,19 @@ def check_page(url, min_content=None):
 
 
 def validate_once():
+    """Returns (errors, rows) where rows = [(label, ok, detail)] for the summary."""
     errors = []
+    rows = []
     # ---- index ----
     ok, detail = check_page(f"{BASE}/index.html")
+    rows.append(("index.html", ok, detail))
     print(f"  index.html          : {detail}")
     if not ok:
-        return [f"{BASE}/index.html — {detail}"]
+        return [f"{BASE}/index.html — {detail}"], rows
     try:
         _, index_html = fetch(f"{BASE}/index.html")
     except Exception as e:
-        return [f"{BASE}/index.html — cannot re-read ({e})"]
+        return [f"{BASE}/index.html — cannot re-read ({e})"], rows
     live_links = re.findall(r'href="(recipes/[^"]+\.html)"', index_html)
     live_links = sorted(set(live_links))
     if EXPECTED:
@@ -82,6 +94,7 @@ def validate_once():
     for link in live_links:
         url = f"{BASE}/{link}"
         ok, detail = check_page(url, min_content=["<title>", 'class="page"', "@media print"])
+        rows.append((link, ok, detail))
         print(f"  {link:46s}: {detail}")
         if not ok:
             errors.append(f"{url} — {detail}")
@@ -96,23 +109,52 @@ def validate_once():
             # e.g. .../recipes/a/a.html + photos/p.jpg -> .../recipes/a/photos/p.jpg
             photo_url = urljoin(url, src)
             ok, detail = check_page(photo_url)
+            rows.append((f"{link} → {src}", ok, detail))
             print(f"    {src:40s}: {detail}")
             if not ok:
                 errors.append(f"{photo_url} — {detail}")
-    return errors
+    return errors, rows
+
+
+def write_summary(rows, errors, passed, attempt):
+    if not SUMMARY_FILE:
+        return
+    verdict = "✅ PASS" if passed else "❌ FAIL"
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    lines = [f"## 🌐 Live Site Post-Deploy Check — {verdict}", ""]
+    lines.append(f"**Site:** {BASE} · **Checked at:** {now} · "
+                 f"**Attempts used:** {attempt}/{RETRIES}")
+    lines.append("")
+    lines.append("| Check | Result |")
+    lines.append("|---|---|")
+    for label, ok, detail in rows:
+        mark = "✅" if ok else "❌"
+        safe = (detail or "").replace("|", "\\|")
+        lines.append(f"| {label} | {mark} {safe} |")
+    if errors:
+        lines.append("")
+        lines.append(f"**Issues ({len(errors)}):**")
+        lines.extend(f"- {e}" for e in errors)
+        lines.append("")
+        lines.append("Fix goes back via a patch PR → quality gate → merge → re-validate.")
+    try:
+        Path(SUMMARY_FILE).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"summary written: {SUMMARY_FILE}")
+    except OSError as e:
+        print(f"cannot write summary: {e}")
 
 
 def main():
     print(f"Live site validation — {BASE}")
     print("=" * 56)
     errors = []
+    rows = []
+    attempt = 1
     for attempt in range(1, RETRIES + 1):
         print(f"Attempt {attempt}/{RETRIES}")
-        errors = validate_once()
+        errors, rows = validate_once()
         if not errors:
-            print("=" * 56)
-            print("LIVE SITE OK")
-            return 0
+            break
         print("=" * 56)
         print(f"{len(errors)} issue(s) on attempt {attempt}:")
         for e in errors:
@@ -121,8 +163,13 @@ def main():
             print(f"Retrying in {RETRY_DELAY}s (Pages deploys can lag ~3 min)...")
             time.sleep(RETRY_DELAY)
     print("=" * 56)
-    print(f"FAIL — validation still failing after {RETRIES} attempts")
-    return 1
+    passed = not errors
+    if passed:
+        print("LIVE SITE OK")
+    else:
+        print(f"FAIL — validation still failing after {RETRIES} attempts")
+    write_summary(rows, errors, passed, attempt)
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

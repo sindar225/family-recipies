@@ -44,8 +44,13 @@ jobs:
             echo "EOF" >> "$GITHUB_OUTPUT"
           fi
       - name: Run quality gate
+        id: gate
         env:
           PR_BODY: ${{ github.event.pull_request.body || '' }}
           PR_TITLE: ${{ github.event.pull_request.title || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
           CHANGED_STATUS: ${{ steps.changes.outputs.status }}
-        run: python3 scripts/quality_gate.py
+        run: python3 scripts/quality_gate.py --summary /tmp/gate-summary.md
+      - name: Publish gate summary
+        if: always()
+        run: cat /tmp/gate-summary.md >> "$GITHUB_STEP_SUMMARY"

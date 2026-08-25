@@ -38,7 +38,10 @@ jobs:
           EXPECTED: ${{ steps.expected.outputs.list }}
         run: |
           set -o pipefail
-          python3 scripts/verify_live_site.py 2>&1 | tee /tmp/verify-report.txt
+          python3 scripts/verify_live_site.py --summary /tmp/verify-summary.md 2>&1 | tee /tmp/verify-report.txt
+      - name: Publish site check summary
+        if: always()
+        run: cat /tmp/verify-summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Open issue on failure
         if: failure()
         env:
