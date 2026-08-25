@@ -17,9 +17,11 @@ Validates six things:
 
 Exit code 0 = pass, 1 = fail. Run from the repository root:
     python3 scripts/quality_gate.py
+    python3 scripts/quality_gate.py --summary /tmp/gate-summary.md   # write a markdown report
 On a pull request, pass PR context via environment variables:
     PR_BODY        — the PR description
     PR_TITLE       — the PR title
+    PR_NUMBER      — the PR number (optional, shown in the summary)
     CHANGED_STATUS — output of `git diff --name-status origin/main...HEAD`
 """
 
@@ -32,6 +34,12 @@ ROOT = Path(__file__).resolve().parent.parent
 RECIPES = ROOT / "recipes"
 INDEX = ROOT / "index.html"
 
+SUMMARY_FILE = None
+if "--summary" in sys.argv:
+    _idx = sys.argv.index("--summary")
+    if _idx + 1 < len(sys.argv):
+        SUMMARY_FILE = sys.argv[_idx + 1]
+
 SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 PHOTO_RE = re.compile(r"^photo-\d+\.(jpe?g|png|webp)$")
 REQUIRED_VARS = ("--paper", "--green", "--red", "--line")
@@ -40,16 +48,22 @@ LEGACY_MARKERS = ('class="hero"', 'class="badges"')
 PRINT_HIDE_RULE = ".gallery-modal, .gallery-btn { display: none !important; }"
 PR_SECTIONS = ("## Motivation", "## Changes", "## Risks", "## Testing")
 
-errors = []
-warnings = []
+CURRENT_AREA = "General"
+errors = []      # (area, message)
+warnings = []    # (area, message)
+
+
+def set_area(name):
+    global CURRENT_AREA
+    CURRENT_AREA = name
 
 
 def fail(msg):
-    errors.append(msg)
+    errors.append((CURRENT_AREA, msg))
 
 
 def warn(msg):
-    warnings.append(msg)
+    warnings.append((CURRENT_AREA, msg))
 
 
 def rel(p):
@@ -271,39 +285,90 @@ def check_pr():
         fail(f"PR adds a new recipe ({added[0]}) — title must start with 'Add recipe: '")
 
 
+# ---------------------------------------------------------------- summary
+
+AREAS = ("Directory structure", "Recipe contents & naming", "Design system",
+         "Gallery integrity", "Photo privacy", "Index consistency", "PR format")
+
+
+def write_summary(passed, n_recipes):
+    if not SUMMARY_FILE:
+        return
+    verdict = "✅ PASS" if passed else "❌ FAIL"
+    lines = [f"## 🛡️ Quality Gate — {verdict}", ""]
+    meta = f"**Recipes validated:** {n_recipes}"
+    pr_num = os.environ.get("PR_NUMBER", "")
+    if pr_num:
+        meta += f" · **PR:** #{pr_num}"
+        if os.environ.get("PR_TITLE"):
+            meta += f" — {os.environ['PR_TITLE']}"
+    lines.append(meta)
+    lines.append("")
+    lines.append("| Check area | Status |")
+    lines.append("|---|---|")
+    for area in AREAS:
+        errs = [m for a, m in errors if a == area]
+        warns = [m for a, m in warnings if a == area]
+        status = "❌" if errs else ("⚠️" if warns else "✅")
+        lines.append(f"| {area} | {status} |")
+    if errors:
+        lines.append("")
+        lines.append(f"**Errors ({len(errors)}):**")
+        lines.extend(f"- {m}" for _, m in errors)
+    if warnings:
+        lines.append("")
+        lines.append(f"**Warnings ({len(warnings)}):**")
+        lines.extend(f"- {m}" for _, m in warnings)
+    lines.append("")
+    lines.append("See the job log for the full console report.")
+    try:
+        Path(SUMMARY_FILE).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"summary written: {SUMMARY_FILE}")
+    except OSError as e:
+        print(f"cannot write summary: {e}")
+
+
 # ---------------------------------------------------------------- main
 
 def main():
     print("Quality gate — family-recipes")
     print("=" * 40)
+    set_area("Directory structure")
     check_root_layout()
     dirs = check_recipe_dirs()
     titles = {}
     for d in dirs:
         slug = d.name
         html = d / f"{slug}.html"
+        set_area("Recipe contents & naming")
         photos = check_recipe_contents(d)
         if html.is_file():
+            set_area("Design system")
             text, title = check_design(html)
             titles[slug] = title
+            set_area("Gallery integrity")
             check_gallery(html, text, photos)
+        set_area("Photo privacy")
         check_photos(photos)
+    set_area("Index consistency")
     check_index(dirs, titles)
+    set_area("PR format")
     check_pr()
     print()
-    for w in warnings:
+    for _, w in warnings:
         print(f"  \u26a0 {w}")
-    for e in errors:
+    for _, e in errors:
         print(f"  \u2717 {e}")
     print()
-    if errors:
+    passed = not errors
+    if not passed:
         print(f"FAIL — {len(errors)} error(s), {len(warnings)} warning(s)")
-        return 1
-    if warnings:
+    elif warnings:
         print(f"PASS — {len(warnings)} warning(s)")
     else:
         print("PASS — all checks clean")
-    return 0
+    write_summary(passed, len(dirs))
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":
